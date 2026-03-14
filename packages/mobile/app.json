@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Rosebud Goal Coach",
+    "slug": "rosebud-goal-coach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "rosebud",
+    "platforms": ["android"],
+    "plugins": ["expo-router", "expo-notifications"],
+    "android": {
+      "package": "com.rosebud.goalcoach",
+      "adaptiveIcon": {
+        "backgroundColor": "#0c4a6e"
+      }
+    }
+  }
+}

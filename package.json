@@ -1,0 +1,14 @@
+{
+  "name": "rosebud-goal-app",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "dev:convex": "npx convex dev",
+    "build:web": "pnpm --filter web build",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

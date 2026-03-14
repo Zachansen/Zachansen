@@ -1,0 +1,24 @@
+{
+  "name": "mobile",
+  "version": "0.0.1",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  },
+  "dependencies": {
+    "convex": "^1.17.0",
+    "expo": "~52.0.0",
+    "expo-router": "~4.0.0",
+    "expo-notifications": "~0.29.0",
+    "react": "^18.3.1",
+    "react-native": "0.76.0",
+    "@rosebud/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.5.0"
+  }
+}

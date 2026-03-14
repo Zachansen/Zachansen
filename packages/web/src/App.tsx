@@ -7,6 +7,7 @@ import Goals from "./pages/Goals";
 import Chat from "./pages/Chat";
 import Memory from "./pages/Memory";
 import Mentors from "./pages/Mentors";
+import CheckIns from "./pages/CheckIns";
 import Settings from "./pages/Settings";
 import { useEffect } from "react";
 
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/chat" element={<Chat />} />
         <Route path="/chat/:sessionId" element={<Chat />} />
         <Route path="/memory" element={<Memory />} />
+        <Route path="/checkins" element={<CheckIns />} />
         <Route path="/mentors" element={<Mentors />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

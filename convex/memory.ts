@@ -41,7 +41,6 @@ export const search = query({
     query: v.string(),
   },
   handler: async (ctx, args) => {
-    // Simple text search - matches memories containing the query string
     const all = await ctx.db
       .query("memories")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -67,6 +66,93 @@ export const getRecent = query({
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .order("desc")
       .take(limit);
+  },
+});
+
+/**
+ * Get framework effectiveness data — which frameworks have been
+ * most useful based on stored memories and session data.
+ */
+export const getFrameworkStats = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    // Get framework effectiveness memories
+    const effectivenessMemories = await ctx.db
+      .query("memories")
+      .withIndex("by_user_category", (q) =>
+        q.eq("userId", args.userId).eq("category", "framework_effectiveness")
+      )
+      .collect();
+
+    // Get all sessions to count framework usage
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const stats: Record<
+      string,
+      { count: number; notes: string[] }
+    > = {};
+
+    // Count framework usage across sessions
+    for (const session of sessions) {
+      for (const fw of session.frameworksUsed) {
+        if (!stats[fw]) stats[fw] = { count: 0, notes: [] };
+        stats[fw].count++;
+      }
+    }
+
+    // Add effectiveness notes
+    for (const mem of effectivenessMemories) {
+      // Try to extract framework name from the content
+      for (const fw of Object.keys(stats)) {
+        if (mem.content.toLowerCase().includes(fw.toLowerCase())) {
+          stats[fw].notes.push(mem.content);
+        }
+      }
+    }
+
+    return stats;
+  },
+});
+
+/**
+ * Get pattern summary — recurring themes across memories.
+ */
+export const getPatterns = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const patterns = await ctx.db
+      .query("memories")
+      .withIndex("by_user_category", (q) =>
+        q.eq("userId", args.userId).eq("category", "pattern")
+      )
+      .collect();
+
+    const resistances = await ctx.db
+      .query("memories")
+      .withIndex("by_user_category", (q) =>
+        q.eq("userId", args.userId).eq("category", "resistance")
+      )
+      .collect();
+
+    const breakthroughs = await ctx.db
+      .query("memories")
+      .withIndex("by_user_category", (q) =>
+        q.eq("userId", args.userId).eq("category", "breakthrough")
+      )
+      .collect();
+
+    return {
+      patterns: patterns.sort((a, b) => b.relevanceScore - a.relevanceScore),
+      resistances: resistances.sort(
+        (a, b) => b.relevanceScore - a.relevanceScore
+      ),
+      breakthroughs: breakthroughs.sort(
+        (a, b) => b.createdAt - a.createdAt
+      ),
+    };
   },
 });
 

@@ -4,8 +4,10 @@ import { internal } from "./_generated/api";
 import {
   CORE_SYSTEM_PROMPT,
   AI_TOOLS,
-} from "../packages/shared/src/prompts/core";
-import { getFrameworkGuide } from "../packages/shared/src/prompts/frameworks";
+  NOTIFICATION_SYSTEM_PROMPT,
+  WEEKLY_REVIEW_PROMPT,
+} from "./prompts";
+import { getFrameworkGuide } from "./frameworks";
 
 /**
  * Main AI coaching action. Calls Claude API with tool use for
@@ -114,7 +116,6 @@ export const chat = action({
       }
 
       if (data.stop_reason === "tool_use" && toolResults.length > 0) {
-        // Add assistant response and tool results, continue loop
         currentMessages = [
           ...currentMessages,
           { role: "assistant" as const, content: data.content },
@@ -137,6 +138,215 @@ export const chat = action({
       response: finalResponse,
       frameworksUsed,
     };
+  },
+});
+
+/**
+ * Generate a contextual notification message using Claude.
+ * Uses a lightweight prompt to keep costs minimal.
+ */
+export const generateNotification = action({
+  args: {
+    userId: v.id("users"),
+    escalationLevel: v.number(),
+    goalId: v.optional(v.id("goals")),
+    context: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+    // Gather context
+    const user = await ctx.runQuery(internal.internal.getUserInternal, {});
+    const goals = await ctx.runQuery(internal.internal.listActiveInternal, {
+      userId: args.userId,
+    });
+
+    let targetGoal = null;
+    if (args.goalId) {
+      targetGoal = goals.find((g: any) => g._id === args.goalId);
+    }
+
+    // Get recent check-in history to understand engagement
+    const recentCheckIns = await ctx.runQuery(
+      internal.internal.getRecentCheckInsInternal,
+      { userId: args.userId, limit: 7 }
+    );
+
+    const daysSinceLastCheckIn =
+      recentCheckIns.length > 0
+        ? Math.floor(
+            (Date.now() - recentCheckIns[0].createdAt) / (1000 * 60 * 60 * 24)
+          )
+        : 999;
+
+    // Get recent action items to reference broken commitments
+    const recentSessions = await ctx.runQuery(
+      internal.internal.getRecentSessionsInternal,
+      { userId: args.userId, limit: 3 }
+    );
+
+    const uncompletedActions = recentSessions.flatMap((s: any) =>
+      s.actionItems.filter((a: any) => !a.completed)
+    );
+
+    const contextMsg = `
+USER: ${user?.name ?? "User"}
+ESCALATION LEVEL: ${args.escalationLevel}/5
+DAYS SINCE LAST CHECK-IN: ${daysSinceLastCheckIn}
+${targetGoal ? `TARGET GOAL: ${targetGoal.title} (${targetGoal.category}${targetGoal.deadline ? `, deadline: ${targetGoal.deadline}` : ""})` : `ACTIVE GOALS: ${goals.map((g: any) => g.title).join(", ")}`}
+${uncompletedActions.length > 0 ? `UNCOMPLETED ACTION ITEMS: ${uncompletedActions.map((a: any) => a.text).join("; ")}` : ""}
+${args.context ?? ""}
+
+Generate a single notification message. Keep it under 160 characters.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 200,
+        system: NOTIFICATION_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: contextMsg }],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Claude API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.content[0]?.text ?? "Time to check in on your goals.";
+  },
+});
+
+/**
+ * Generate a weekly review summary using Claude.
+ */
+export const generateWeeklyReview = action({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    // Gather week's data
+    const goals = await ctx.runQuery(internal.internal.listActiveInternal, {
+      userId: args.userId,
+    });
+    const sessions = await ctx.runQuery(
+      internal.internal.getRecentSessionsInternal,
+      { userId: args.userId, limit: 20 }
+    );
+    const weekSessions = sessions.filter(
+      (s: any) => s.createdAt >= oneWeekAgo
+    );
+    const checkIns = await ctx.runQuery(
+      internal.internal.getRecentCheckInsInternal,
+      { userId: args.userId, limit: 14 }
+    );
+    const weekCheckIns = checkIns.filter(
+      (c: any) => c.createdAt >= oneWeekAgo
+    );
+    const memories = await ctx.runQuery(
+      internal.internal.getRecentMemoriesInternal,
+      { userId: args.userId, limit: 20 }
+    );
+    const weekMemories = memories.filter(
+      (m: any) => m.createdAt >= oneWeekAgo
+    );
+
+    // Build context
+    const allActionItems = weekSessions.flatMap((s: any) => s.actionItems);
+    const completedActions = allActionItems.filter((a: any) => a.completed);
+    const frameworksUsed = weekSessions.flatMap(
+      (s: any) => s.frameworksUsed
+    );
+    const frameworkCounts: Record<string, number> = {};
+    for (const f of frameworksUsed) {
+      frameworkCounts[f] = (frameworkCounts[f] ?? 0) + 1;
+    }
+
+    const avgMood =
+      weekCheckIns.length > 0
+        ? weekCheckIns.reduce(
+            (sum: number, c: any) => sum + (c.mood ?? 0),
+            0
+          ) / weekCheckIns.filter((c: any) => c.mood).length || 0
+        : 0;
+
+    const contextMsg = `
+WEEK SUMMARY DATA:
+- Sessions this week: ${weekSessions.length}
+- Check-ins this week: ${weekCheckIns.length}
+- Action items created: ${allActionItems.length}
+- Action items completed: ${completedActions.length}
+- Average mood: ${avgMood.toFixed(1)}/10
+- Frameworks used: ${Object.entries(frameworkCounts).map(([k, v]) => `${k}(${v})`).join(", ") || "none"}
+
+ACTIVE GOALS:
+${goals.map((g: any) => `- ${g.title} (${g.category}): ${g.description}${g.milestones.length > 0 ? ` [${g.milestones.filter((m: any) => m.completed).length}/${g.milestones.length} milestones]` : ""}`).join("\n")}
+
+NEW INSIGHTS THIS WEEK:
+${weekMemories.map((m: any) => `- [${m.category}] ${m.content}`).join("\n") || "None recorded"}
+
+SESSION TOPICS:
+${weekSessions.map((s: any) => `- ${s.messages[0]?.content?.slice(0, 100) ?? "empty"}`).join("\n") || "No sessions"}
+
+WINS FROM CHECK-INS:
+${weekCheckIns.filter((c: any) => c.wins).map((c: any) => `- ${c.wins}`).join("\n") || "None recorded"}
+
+BLOCKERS FROM CHECK-INS:
+${weekCheckIns.filter((c: any) => c.blockers).map((c: any) => `- ${c.blockers}`).join("\n") || "None recorded"}
+
+Generate a comprehensive but concise weekly review.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-20250514",
+        max_tokens: 2048,
+        system: WEEKLY_REVIEW_PROMPT,
+        messages: [{ role: "user", content: contextMsg }],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Claude API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const review = data.content[0]?.text ?? "Unable to generate review.";
+
+    // Save the review as a special session
+    const sessionId = await ctx.runMutation(
+      internal.internal.createSessionInternal,
+      {
+        userId: args.userId,
+        goalId: undefined,
+      }
+    );
+
+    await ctx.runMutation(internal.internal.addMessageInternal, {
+      sessionId,
+      role: "assistant",
+      content: `📋 **WEEKLY REVIEW**\n\n${review}`,
+      frameworksUsed: [],
+    });
+
+    return { sessionId, review };
   },
 });
 

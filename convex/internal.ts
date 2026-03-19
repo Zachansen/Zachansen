@@ -281,6 +281,83 @@ export const markNotificationSentInternal = internalMutation({
   },
 });
 
+// --- 12 Week Year Plan Context ---
+
+export const getActivePlanContextInternal = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    // Get active plan
+    const plan = await ctx.db
+      .query("plans")
+      .withIndex("by_user_status", (q) =>
+        q.eq("userId", args.userId).eq("status", "active")
+      )
+      .first();
+
+    if (!plan) return null;
+
+    // Calculate current week
+    const start = new Date(plan.startDate).getTime();
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const weekNumber = Math.min(
+      Math.floor((now - start) / weekMs) + 1,
+      plan.cycleLength + 1
+    );
+
+    // Get this week's tactics
+    const tactics = await ctx.db
+      .query("weeklyTactics")
+      .withIndex("by_plan_week", (q) =>
+        q.eq("planId", plan._id).eq("weekNumber", weekNumber)
+      )
+      .collect();
+
+    const planned = tactics.length;
+    const completed = tactics.filter((t) => t.completed).length;
+    const score = planned > 0 ? Math.round((completed / planned) * 100) : 0;
+
+    // Get goals linked to this plan
+    const goals = [];
+    for (const goalId of plan.goalIds) {
+      const goal = await ctx.db.get(goalId);
+      if (goal) goals.push(goal);
+    }
+
+    // Get last week's score
+    const lastWeekScore = weekNumber > 1
+      ? await ctx.db
+          .query("weeklyScores")
+          .withIndex("by_plan_week", (q) =>
+            q.eq("planId", plan._id).eq("weekNumber", weekNumber - 1)
+          )
+          .first()
+      : null;
+
+    return {
+      plan,
+      weekNumber,
+      totalWeeks: plan.cycleLength,
+      weeksRemaining: Math.max(0, plan.cycleLength - weekNumber + 1),
+      isBufferWeek: weekNumber > plan.cycleLength,
+      tactics: tactics.map((t) => ({
+        tactic: t.tactic,
+        completed: t.completed,
+        goalId: t.goalId,
+      })),
+      currentScore: score,
+      planned,
+      completed,
+      lastWeekScore: lastWeekScore?.executionScore ?? null,
+      goals: goals.map((g) => ({
+        title: g.title,
+        category: g.category,
+        milestones: g.milestones,
+      })),
+    };
+  },
+});
+
 // --- Escalation tracking ---
 
 export const getEscalationLevel = internalQuery({

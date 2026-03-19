@@ -1,16 +1,23 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 
 export default function Settings() {
   const user = useQuery(api.auth.getUser);
   const updateUser = useMutation(api.auth.updateUser);
 
+  const testObsidian = useAction(api.obsidian.testConnection);
+  const syncInsights = useAction(api.obsidian.syncInsights);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [timezone, setTimezone] = useState("");
+  const [obsidianUrl, setObsidianUrl] = useState("");
+  const [obsidianApiKey, setObsidianApiKey] = useState("");
+  const [obsidianVaultFolder, setObsidianVaultFolder] = useState("");
   const [saved, setSaved] = useState(false);
+  const [obsidianStatus, setObsidianStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -18,6 +25,9 @@ export default function Settings() {
       setEmail(user.email ?? "");
       setPhone(user.phone ?? "");
       setTimezone(user.timezone);
+      setObsidianUrl(user.obsidianUrl ?? "");
+      setObsidianApiKey(user.obsidianApiKey ?? "");
+      setObsidianVaultFolder(user.obsidianVaultFolder ?? "");
     }
   }, [user]);
 
@@ -31,9 +41,28 @@ export default function Settings() {
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
       timezone: timezone.trim(),
+      obsidianUrl: obsidianUrl.trim() || undefined,
+      obsidianApiKey: obsidianApiKey.trim() || undefined,
+      obsidianVaultFolder: obsidianVaultFolder.trim() || undefined,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function handleTestObsidian() {
+    if (!user) return;
+    setObsidianStatus("Testing...");
+    const result = await testObsidian({ userId: user._id });
+    setObsidianStatus(result.success ? "Connected!" : result.error ?? "Failed");
+    setTimeout(() => setObsidianStatus(null), 3000);
+  }
+
+  async function handleSyncInsights() {
+    if (!user) return;
+    setObsidianStatus("Syncing...");
+    const result = await syncInsights({ userId: user._id });
+    setObsidianStatus(result.success ? "Synced!" : result.error ?? "Failed");
+    setTimeout(() => setObsidianStatus(null), 3000);
   }
 
   async function handleNotificationToggle(
@@ -162,6 +191,121 @@ export default function Settings() {
             checked={user.notificationPreferences.eveningCheckIn}
             onChange={(v) => handleNotificationToggle("eveningCheckIn", v)}
           />
+        </div>
+      </div>
+
+      {/* Obsidian Integration */}
+      <div className="card space-y-4">
+        <h2 className="text-lg font-semibold text-white">Obsidian Integration</h2>
+        <p className="text-sm text-gray-500">
+          Sync coaching sessions, insights, and reviews to your Obsidian vault using the{" "}
+          <a
+            href="https://github.com/coddingtonbear/obsidian-local-rest-api"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-400 hover:underline"
+          >
+            Local REST API
+          </a>{" "}
+          plugin.
+        </p>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Obsidian REST API URL
+          </label>
+          <input
+            type="text"
+            value={obsidianUrl}
+            onChange={(e) => setObsidianUrl(e.target.value)}
+            className="input w-full"
+            placeholder="http://localhost:27124"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            API Key
+          </label>
+          <input
+            type="password"
+            value={obsidianApiKey}
+            onChange={(e) => setObsidianApiKey(e.target.value)}
+            className="input w-full"
+            placeholder="Your Local REST API key"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Vault Folder
+          </label>
+          <input
+            type="text"
+            value={obsidianVaultFolder}
+            onChange={(e) => setObsidianVaultFolder(e.target.value)}
+            className="input w-full"
+            placeholder="/Rosebud"
+          />
+          <p className="text-xs text-gray-600 mt-1">
+            Folder within your vault where Rosebud notes will be saved.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={handleTestObsidian} className="btn-secondary text-sm">
+            Test Connection
+          </button>
+          <button onClick={handleSyncInsights} className="btn-secondary text-sm">
+            Sync Insights Now
+          </button>
+          {obsidianStatus && (
+            <span
+              className={`text-sm ${
+                obsidianStatus.includes("!") || obsidianStatus === "Testing..." || obsidianStatus === "Syncing..."
+                  ? "text-green-400"
+                  : "text-red-400"
+              }`}
+            >
+              {obsidianStatus}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Quiet Hours */}
+      <div className="card space-y-4">
+        <h2 className="text-lg font-semibold text-white">Quiet Hours</h2>
+        <p className="text-sm text-gray-500">
+          No notifications during these hours.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Start
+            </label>
+            <input
+              type="time"
+              value={user.notificationPreferences.quietHoursStart ?? "22:00"}
+              onChange={(e) =>
+                handleNotificationToggle("quietHoursStart" as any, e.target.value as any)
+              }
+              className="input w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              End
+            </label>
+            <input
+              type="time"
+              value={user.notificationPreferences.quietHoursEnd ?? "07:00"}
+              onChange={(e) =>
+                handleNotificationToggle("quietHoursEnd" as any, e.target.value as any)
+              }
+              className="input w-full"
+            />
+          </div>
         </div>
       </div>
 

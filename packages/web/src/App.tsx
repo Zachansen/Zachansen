@@ -9,6 +9,8 @@ import Memory from "./pages/Memory";
 import Mentors from "./pages/Mentors";
 import CheckIns from "./pages/CheckIns";
 import Settings from "./pages/Settings";
+import Onboarding from "./pages/Onboarding";
+import Plan from "./pages/Plan";
 import { useEffect } from "react";
 
 export default function App() {
@@ -30,11 +32,21 @@ export default function App() {
     );
   }
 
+  // Show onboarding for new users
+  if (user && !user.isOnboarded) {
+    return (
+      <Routes>
+        <Route path="*" element={<Onboarding />} />
+      </Routes>
+    );
+  }
+
   return (
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/goals" element={<Goals />} />
+        <Route path="/plan" element={<Plan />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/chat/:sessionId" element={<Chat />} />
         <Route path="/memory" element={<Memory />} />

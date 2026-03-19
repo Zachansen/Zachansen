@@ -115,3 +115,84 @@ export const remove = mutation({
     await ctx.db.delete(args.goalId);
   },
 });
+
+// --- Milestone Management ---
+
+export const addMilestone = mutation({
+  args: {
+    goalId: v.id("goals"),
+    title: v.string(),
+    deadline: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const goal = await ctx.db.get(args.goalId);
+    if (!goal) throw new Error("Goal not found");
+
+    const id = Math.random().toString(36).substring(2, 15);
+    await ctx.db.patch(args.goalId, {
+      milestones: [
+        ...goal.milestones,
+        {
+          id,
+          title: args.title,
+          deadline: args.deadline,
+          completed: false,
+        },
+      ],
+      updatedAt: Date.now(),
+    });
+    return id;
+  },
+});
+
+export const completeMilestone = mutation({
+  args: {
+    goalId: v.id("goals"),
+    milestoneId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const goal = await ctx.db.get(args.goalId);
+    if (!goal) throw new Error("Goal not found");
+
+    const milestones = goal.milestones.map((m) =>
+      m.id === args.milestoneId
+        ? { ...m, completed: true, completedAt: new Date().toISOString() }
+        : m
+    );
+
+    await ctx.db.patch(args.goalId, { milestones, updatedAt: Date.now() });
+  },
+});
+
+export const uncompleteMilestone = mutation({
+  args: {
+    goalId: v.id("goals"),
+    milestoneId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const goal = await ctx.db.get(args.goalId);
+    if (!goal) throw new Error("Goal not found");
+
+    const milestones = goal.milestones.map((m) =>
+      m.id === args.milestoneId
+        ? { ...m, completed: false, completedAt: undefined }
+        : m
+    );
+
+    await ctx.db.patch(args.goalId, { milestones, updatedAt: Date.now() });
+  },
+});
+
+export const removeMilestone = mutation({
+  args: {
+    goalId: v.id("goals"),
+    milestoneId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const goal = await ctx.db.get(args.goalId);
+    if (!goal) throw new Error("Goal not found");
+
+    const milestones = goal.milestones.filter((m) => m.id !== args.milestoneId);
+    await ctx.db.patch(args.goalId, { milestones, updatedAt: Date.now() });
+  },
+});

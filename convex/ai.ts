@@ -44,7 +44,7 @@ export const chat = action({
       { role: "user" as const, content: args.userMessage },
     ];
 
-    // 4. Get active goals for context
+    // 4. Get active goals and 12WY plan for context
     const goals = await ctx.runQuery(internal.internal.listActiveInternal, {
       userId: args.userId,
     });
@@ -52,6 +52,17 @@ export const chat = action({
       goals.length > 0
         ? `\n\nUSER'S ACTIVE GOALS:\n${goals.map((g: { title: string; description: string; category: string; deadline?: string }) => `- ${g.title} (${g.category}${g.deadline ? `, deadline: ${g.deadline}` : ""}): ${g.description}`).join("\n")}`
         : "";
+
+    // 12 Week Year plan context
+    const planContext = await ctx.runQuery(
+      internal.internal.getActivePlanContextInternal,
+      { userId: args.userId }
+    );
+    const planContextStr = planContext
+      ? `\n\n12 WEEK YEAR PLAN: "${planContext.plan.title}" — Week ${planContext.weekNumber}/${planContext.totalWeeks}${planContext.isBufferWeek ? " (BUFFER WEEK)" : ""}, ${planContext.weeksRemaining} weeks remaining
+This week's execution: ${planContext.completed}/${planContext.planned} tactics (${planContext.currentScore}%${planContext.currentScore >= 85 ? " — ON TRACK" : " — BELOW TARGET"})${planContext.lastWeekScore !== null ? `\nLast week: ${planContext.lastWeekScore}%` : ""}
+Incomplete tactics this week: ${planContext.tactics.filter((t: any) => !t.completed).map((t: any) => `"${t.tactic}"`).join(", ") || "All complete!"}`
+      : "";
 
     // 5. Call Claude API with tool use
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -75,7 +86,7 @@ export const chat = action({
         body: JSON.stringify({
           model: "claude-opus-4-20250514",
           max_tokens: 2048,
-          system: CORE_SYSTEM_PROMPT + goalContext,
+          system: CORE_SYSTEM_PROMPT + goalContext + planContextStr,
           messages: currentMessages,
           tools: AI_TOOLS,
         }),
@@ -395,6 +406,33 @@ async function handleToolCall(
       if (!mentor)
         return `Mentor "${input.mentorName}" not found. Available: ${board.mentors.map((m: { name: string }) => m.name).join(", ")}`;
       return `${mentor.name} (${mentor.description}): ${mentor.perspective}\nKey phrases: ${mentor.keyPhrases.join(", ")}`;
+    }
+
+    case "getPlanContext": {
+      const context = await ctx.runQuery(
+        internal.internal.getActivePlanContextInternal,
+        { userId }
+      );
+      if (!context) return "No active 12 Week Year plan found.";
+      const incompleteTactics = context.tactics
+        .filter((t: any) => !t.completed)
+        .map((t: any) => `- [ ] ${t.tactic}`)
+        .join("\n");
+      const completedTactics = context.tactics
+        .filter((t: any) => t.completed)
+        .map((t: any) => `- [x] ${t.tactic}`)
+        .join("\n");
+      return `12 WEEK YEAR PLAN: "${context.plan.title}"
+Vision: ${context.plan.vision}
+Week ${context.weekNumber}/${context.totalWeeks}${context.isBufferWeek ? " (BUFFER WEEK)" : ""} — ${context.weeksRemaining} weeks remaining
+Execution score: ${context.currentScore}% (${context.completed}/${context.planned} tactics)${context.currentScore >= 85 ? " ✓ ON TRACK" : " ✗ BELOW 85% TARGET"}
+${context.lastWeekScore !== null ? `Last week: ${context.lastWeekScore}%\n` : ""}
+Goals in this plan:
+${context.goals.map((g: any) => `- ${g.title} (${g.category}) [${g.milestones.filter((m: any) => m.completed).length}/${g.milestones.length} milestones]`).join("\n")}
+
+This week's tactics:
+${completedTactics}
+${incompleteTactics}`;
     }
 
     case "createActionItem": {

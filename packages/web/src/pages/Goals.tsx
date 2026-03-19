@@ -3,6 +3,14 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 
+// Milestone mutations
+const useMilestoneActions = () => ({
+  addMilestone: useMutation(api.goals.addMilestone),
+  completeMilestone: useMutation(api.goals.completeMilestone),
+  uncompleteMilestone: useMutation(api.goals.uncompleteMilestone),
+  removeMilestone: useMutation(api.goals.removeMilestone),
+});
+
 const CATEGORIES = [
   "health",
   "career",
@@ -224,6 +232,33 @@ function GoalCard({
   onDelete: () => void;
 }) {
   const [showActions, setShowActions] = useState(false);
+  const [showAddMilestone, setShowAddMilestone] = useState(false);
+  const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
+  const { addMilestone, completeMilestone, uncompleteMilestone, removeMilestone } =
+    useMilestoneActions();
+
+  const completedCount = goal.milestones.filter((m: any) => m.completed).length;
+  const totalCount = goal.milestones.length;
+  const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  async function handleAddMilestone() {
+    if (!newMilestoneTitle.trim()) return;
+    await addMilestone({ goalId: goal._id, title: newMilestoneTitle.trim() });
+    setNewMilestoneTitle("");
+    setShowAddMilestone(false);
+  }
+
+  async function handleToggleMilestone(milestoneId: string, completed: boolean) {
+    if (completed) {
+      await uncompleteMilestone({ goalId: goal._id, milestoneId });
+    } else {
+      await completeMilestone({ goalId: goal._id, milestoneId });
+    }
+  }
+
+  async function handleRemoveMilestone(milestoneId: string) {
+    await removeMilestone({ goalId: goal._id, milestoneId });
+  }
 
   return (
     <div className="card">
@@ -299,25 +334,131 @@ function GoalCard({
         </div>
       </div>
 
+      {/* Progress bar */}
+      {totalCount > 0 && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+            <span>
+              {completedCount}/{totalCount} milestones
+            </span>
+            <span>{progressPct}%</span>
+          </div>
+          <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary-500 rounded-full transition-all"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Milestones */}
       {goal.milestones.length > 0 && (
         <div className="mt-3 space-y-1">
           {goal.milestones.map((m: any) => (
-            <div key={m.id} className="flex items-center gap-2 text-sm">
-              <div
-                className={`w-3.5 h-3.5 rounded-full border ${
+            <div
+              key={m.id}
+              className="flex items-center gap-2 text-sm group"
+            >
+              <button
+                onClick={() => handleToggleMilestone(m.id, m.completed)}
+                className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                   m.completed
                     ? "bg-green-500 border-green-500"
-                    : "border-gray-600"
+                    : "border-gray-600 hover:border-primary-500"
                 }`}
-              />
-              <span className={m.completed ? "text-gray-500 line-through" : "text-gray-400"}>
+              >
+                {m.completed && (
+                  <svg
+                    className="w-2.5 h-2.5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+              </button>
+              <span
+                className={`flex-1 ${
+                  m.completed
+                    ? "text-gray-500 line-through"
+                    : "text-gray-400"
+                }`}
+              >
                 {m.title}
               </span>
+              {m.deadline && (
+                <span className="text-xs text-gray-600">
+                  {new Date(m.deadline).toLocaleDateString()}
+                </span>
+              )}
+              <button
+                onClick={() => handleRemoveMilestone(m.id)}
+                className="text-gray-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
             </div>
           ))}
         </div>
       )}
+
+      {/* Add milestone */}
+      <div className="mt-2">
+        {showAddMilestone ? (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newMilestoneTitle}
+              onChange={(e) => setNewMilestoneTitle(e.target.value)}
+              className="input flex-1 text-sm py-1"
+              placeholder="Milestone title..."
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddMilestone();
+                if (e.key === "Escape") setShowAddMilestone(false);
+              }}
+            />
+            <button
+              onClick={handleAddMilestone}
+              className="text-primary-400 hover:text-primary-300 text-sm"
+            >
+              Add
+            </button>
+            <button
+              onClick={() => setShowAddMilestone(false)}
+              className="text-gray-600 hover:text-gray-400 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowAddMilestone(true)}
+            className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+          >
+            + Add milestone
+          </button>
+        )}
+      </div>
 
       {goal.deadline && (
         <p className="text-xs text-gray-600 mt-3">

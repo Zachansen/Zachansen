@@ -49,6 +49,11 @@ export const updateUser = mutation({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     timezone: v.optional(v.string()),
+    isOnboarded: v.optional(v.boolean()),
+    vision: v.optional(v.string()),
+    obsidianUrl: v.optional(v.string()),
+    obsidianApiKey: v.optional(v.string()),
+    obsidianVaultFolder: v.optional(v.string()),
     notificationPreferences: v.optional(
       v.object({
         pushEnabled: v.boolean(),

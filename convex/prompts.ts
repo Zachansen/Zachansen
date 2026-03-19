@@ -18,6 +18,7 @@ Therapeutic: CBT, ACT, IFS, NLP, SelfHypnosis, MotivationalInterviewing, Solutio
 Performance: AtomicHabits, Essentialism, Pareto, FearSetting, ImplementationIntentions, DeepWork
 Mindset: Christianity, Manifestation, Surrender, Stoicism, GrowthMindset, Gratitude, Breathwork, PositivePsychology
 Identity: FutureSelf, CouncilOfMentors, DirectAccountability
+Planning: TwelveWeekYear
 
 INSTRUCTIONS:
 1. Assess what the user needs RIGHT NOW (thinking vs feeling vs action problem)
@@ -44,7 +45,7 @@ export const AI_TOOLS = [
         name: {
           type: "string" as const,
           description:
-            "Framework name: CBT, ACT, IFS, NLP, SelfHypnosis, MotivationalInterviewing, SolutionFocused, ShadowWork, AtomicHabits, Essentialism, Pareto, FearSetting, ImplementationIntentions, DeepWork, Christianity, Manifestation, Surrender, Stoicism, GrowthMindset, Gratitude, Breathwork, PositivePsychology, FutureSelf, CouncilOfMentors, DirectAccountability",
+            "Framework name: CBT, ACT, IFS, NLP, SelfHypnosis, MotivationalInterviewing, SolutionFocused, ShadowWork, AtomicHabits, Essentialism, Pareto, FearSetting, ImplementationIntentions, DeepWork, Christianity, Manifestation, Surrender, Stoicism, GrowthMindset, Gratitude, Breathwork, PositivePsychology, FutureSelf, CouncilOfMentors, DirectAccountability, TwelveWeekYear",
         },
       },
       required: ["name"],
@@ -99,6 +100,16 @@ export const AI_TOOLS = [
         },
       },
       required: ["text"],
+    },
+  },
+  {
+    name: "getPlanContext",
+    description:
+      "Load the user's active 12 Week Year plan, current week number, this week's tactics, and execution score. Call this when discussing goals, planning, weekly reviews, or accountability.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [] as string[],
     },
   },
   {

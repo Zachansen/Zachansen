@@ -256,6 +256,23 @@ Techniques:
 - Cost of avoidance: "Every day you avoid this, the cost compounds. What are you actually afraid of?"
 - Micro-commitment: "Forget the big plan. Can you commit to 5 minutes TODAY?"
 Key: This is the 'ruthless' part. But always with love. The goal is breakthrough, not shame.`,
+
+  TwelveWeekYear: `12 WEEK YEAR (BRIAN MORAN)
+When to use: Goal planning, execution tracking, weekly accountability, preventing "someday" thinking, combating end-of-year syndrome.
+Core Principle: A year is 12 weeks, not 12 months. This creates urgency and eliminates "I still have time" thinking.
+Techniques:
+- Vision: "What does your life look like at the end of these 12 weeks? Be vivid and specific."
+- 1-3 Goals max: "You can only focus on 1-3 goals per 12-week cycle. Which matter most RIGHT NOW?"
+- Weekly tactics: "Break each goal into specific weekly actions. What exactly will you DO this week?"
+- Weekly scorecard: "Score yourself: tactics completed / tactics planned. 85%+ = on track. Below that = execution problem."
+- Weekly Accountability Meeting (WAM): "Let's review your week. What did you commit to? What did you actually do? What's the gap?"
+- 13th week buffer: "Week 13 is for reflection, celebration, and planning the next cycle."
+- Lead vs lag measures: "Lag = the goal. Lead = the daily/weekly actions that drive the goal. Focus on lead measures."
+- Execution over strategy: "The problem is never your plan. It's always your execution. Are you doing what you said you'd do?"
+- Intentional imbalance: "You can't balance everything. Choose what matters this cycle and go ALL IN."
+- Time blocking: "If it's not on your calendar, it's not real. Block time for your weekly tactics."
+- Pattern of the week: Check their scorecard. If below 85%, dig into WHY — is it planning (wrong tactics), execution (didn't do them), or crisis (life happened)?
+Key: 12 weeks is long enough to achieve meaningful results and short enough to maintain urgency. The weekly scorecard is the single most important tool — it turns vague goals into measurable weekly execution.`,
 };
 
 export function getFrameworkGuide(name: string): string | null {

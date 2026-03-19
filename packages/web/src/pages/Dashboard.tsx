@@ -34,7 +34,29 @@ export default function Dashboard() {
     api.checkins.getStreak,
     user ? { userId: user._id } : "skip"
   );
+  const activePlan = useQuery(
+    api.plans.getActive,
+    user ? { userId: user._id } : "skip"
+  );
+  const currentWeek = useQuery(
+    api.plans.getCurrentWeek,
+    activePlan ? { planId: activePlan._id } : "skip"
+  );
+  const weekTactics = useQuery(
+    api.plans.getTacticsForWeek,
+    activePlan && currentWeek
+      ? { planId: activePlan._id, weekNumber: currentWeek.weekNumber }
+      : "skip"
+  );
+  const weekScore = useQuery(
+    api.plans.calculateWeekScore,
+    activePlan && currentWeek
+      ? { planId: activePlan._id, weekNumber: currentWeek.weekNumber }
+      : "skip"
+  );
   const completeAction = useMutation(api.actionItems.complete);
+  const completeTactic = useMutation(api.plans.completeTactic);
+  const uncompleteTactic = useMutation(api.plans.uncompleteTactic);
 
   if (!user) return null;
 
@@ -82,6 +104,177 @@ export default function Dashboard() {
           userId={user._id}
         />
       </div>
+
+      {/* 12 Week Year Plan Scorecard */}
+      {activePlan && currentWeek && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-white">
+                {activePlan.title}
+              </h2>
+              <p className="text-sm text-gray-500">
+                Week {currentWeek.weekNumber}/{currentWeek.totalWeeks}
+                {currentWeek.isBufferWeek ? " (Buffer Week)" : ""} —{" "}
+                {currentWeek.weeksRemaining} weeks remaining
+              </p>
+            </div>
+            {weekScore && (
+              <div className="text-center">
+                <div
+                  className={`text-3xl font-bold ${
+                    weekScore.score >= 85
+                      ? "text-green-400"
+                      : weekScore.score >= 60
+                        ? "text-yellow-400"
+                        : "text-red-400"
+                  }`}
+                >
+                  {weekScore.score}%
+                </div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">
+                  execution
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Week progress bar */}
+          <div className="mb-4">
+            <div className="flex gap-1">
+              {Array.from({ length: currentWeek.totalWeeks }, (_, i) => (
+                <div
+                  key={i}
+                  className={`h-2 flex-1 rounded-full ${
+                    i < currentWeek.weekNumber - 1
+                      ? "bg-primary-500"
+                      : i === currentWeek.weekNumber - 1
+                        ? "bg-primary-400 animate-pulse"
+                        : "bg-gray-800"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* This week's tactics */}
+          {weekTactics && weekTactics.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-400 mb-2">
+                This Week's Tactics ({weekScore?.completed ?? 0}/
+                {weekScore?.planned ?? 0})
+              </h3>
+              <div className="space-y-1.5">
+                {weekTactics.map((tactic) => (
+                  <div
+                    key={tactic._id}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <button
+                      onClick={() =>
+                        tactic.completed
+                          ? uncompleteTactic({ tacticId: tactic._id })
+                          : completeTactic({ tacticId: tactic._id })
+                      }
+                      className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                        tactic.completed
+                          ? "bg-green-500 border-green-500"
+                          : "border-gray-600 hover:border-primary-500"
+                      }`}
+                    >
+                      {tactic.completed && (
+                        <svg
+                          className="w-2.5 h-2.5 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                    <span
+                      className={
+                        tactic.completed
+                          ? "text-gray-500 line-through"
+                          : "text-gray-300"
+                      }
+                    >
+                      {tactic.tactic}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {weekTactics && weekTactics.length === 0 && (
+            <p className="text-sm text-gray-600">
+              No tactics planned for this week yet.{" "}
+              <Link to="/chat" className="text-primary-400 hover:underline">
+                Start a session
+              </Link>{" "}
+              to plan your week.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Upcoming milestones */}
+      {goals && goals.length > 0 && (() => {
+        const upcomingMilestones = goals
+          .flatMap((g) =>
+            g.milestones
+              .filter((m) => !m.completed && m.deadline)
+              .map((m) => ({ ...m, goalTitle: g.title, goalId: g._id }))
+          )
+          .sort((a, b) => {
+            if (!a.deadline || !b.deadline) return 0;
+            return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+          })
+          .slice(0, 5);
+
+        if (upcomingMilestones.length === 0) return null;
+
+        return (
+          <div className="card">
+            <h3 className="text-sm font-medium text-gray-400 mb-3">
+              Upcoming Milestones
+            </h3>
+            <div className="space-y-2">
+              {upcomingMilestones.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <div>
+                    <span className="text-gray-300">{m.title}</span>
+                    <span className="text-gray-600 ml-2 text-xs">
+                      ({m.goalTitle})
+                    </span>
+                  </div>
+                  {m.deadline && (
+                    <span
+                      className={`text-xs ${
+                        new Date(m.deadline) < new Date()
+                          ? "text-red-400"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {new Date(m.deadline).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Overdue action items alert */}
       {overdueActions && overdueActions.length > 0 && (
